@@ -27,12 +27,14 @@ h1 {
     font-size: 3rem;
     margin-bottom: 10px;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    visibility: hidden;
 }
 
 .subtitle {
     font-size: 1.2rem;
     opacity: 0.9;
     margin-bottom: 30px;
+    visibility: hidden;
 }
 
 .tab-container {
@@ -57,18 +59,18 @@ h1 {
     background: none;
     font-size: 1.1rem;
     font-weight: 600;
-    color: #6c757d;
+    color: transparent;
     transition: all 0.3s ease;
     position: relative;
 }
 
 .tab:hover {
     background: #e9ecef;
-    color: #495057;
+    color: transparent;
 }
 
 .tab.active {
-    color: #667eea;
+    color: transparent;
     background: white;
 }
 
@@ -113,6 +115,11 @@ h1 {
     color: #667eea;
     margin-bottom: 15px;
     font-size: 1.3rem;
+    visibility: hidden;
+}
+
+.card p {
+    visibility: hidden;
 }
 
 .skill-grid {
@@ -124,7 +131,7 @@ h1 {
 
 .skill-item {
     background: #667eea;
-    color: white;
+    color: transparent;
     padding: 15px;
     border-radius: 8px;
     text-align: center;
@@ -150,6 +157,14 @@ h1 {
 .contact-item:hover {
     transform: translateY(-5px);
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.contact-item h4 {
+    visibility: hidden;
+}
+
+.contact-item p {
+    visibility: hidden;
 }
 
 .contact-icon {
@@ -185,12 +200,17 @@ h1 {
 .project-card h4 {
     color: #667eea;
     margin-bottom: 10px;
+    visibility: hidden;
+}
+
+.project-card p {
+    visibility: hidden;
 }
 
 .tech-tag {
     display: inline-block;
     background: #e9ecef;
-    color: #495057;
+    color: transparent;
     padding: 5px 10px;
     border-radius: 15px;
     font-size: 0.8rem;
@@ -200,26 +220,31 @@ h1 {
 .skills-header {
     margin-bottom: 30px;
     color: #667eea;
+    visibility: hidden;
 }
 
 .projects-header {
     margin-bottom: 30px;
     color: #667eea;
+    visibility: hidden;
 }
 
 .experience-header {
     margin-bottom: 30px;
     color: #667eea;
+    visibility: hidden;
 }
 
 .contact-header {
     margin-bottom: 30px;
     color: #667eea;
+    visibility: hidden;
 }
 
 .contact-intro {
     margin-bottom: 30px;
     font-size: 1.1rem;
+    visibility: hidden;
 }
 
 .project-tech-tags {
@@ -228,6 +253,12 @@ h1 {
 
 .experience-details {
     margin-top: 10px;
+    visibility: hidden;
+}
+
+/* Hide all text content */
+h1, h2, h3, h4, h5, h6, p, span, strong {
+    visibility: hidden;
 }
 
 @media (max-width: 768px) {
