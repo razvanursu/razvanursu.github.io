@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Coordinate Overlay - Răzvan-Mihai Ursu</title>
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">← Back to Portfolio</a>
+        
+        <header>
+            <h1>📍 Image Coordinate Overlay</h1>
+            <p class="subtitle">Add GPS coordinates to your images - entirely in your browser</p>
+        </header>
+
+        <div class="tab-container">
+            <div class="tab-content">
+                <div class="content-section active">
+                    <!-- Upload Section -->
+                    <div class="card upload-section" id="uploadSection">
+                        <h3>📁 Select or Drop Your Image</h3>
+                        <p>Supports JPEG, PNG, HEIC, and other formats</p>
+                        <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                            Choose Image File
+                        </button>
+                        <input type="file" id="fileInput" accept="image/*" multiple>
+                        <div class="progress-bar" id="progressBar" style="display: none;">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+
+                    <!-- Configuration Section -->
+                    <div class="card">
+                        <h3>⚙️ Overlay Configuration</h3>
+                        <div class="config-grid">
+                            <div class="config-group">
+                                <h4>Font Sizes</h4>
+                                <div class="form-row">
+                                    <label>Coordinate Text:</label>
+                                    <input type="number" id="coordinateFontSize" value="144" min="20" max="300">
+                                </div>
+                                <div class="form-row">
+                                    <label>Source Text:</label>
+                                    <input type="number" id="sourceFontSize" value="48" min="16" max="150">
+                                </div>
+                            </div>
+
+                            <div class="config-group">
+                                <h4>Colors</h4>
+                                <div class="form-row">
+                                    <label>Coordinate Color:</label>
+                                    <input type="color" id="coordinateColor" value="#ffffff">
+                                </div>
+                                <div class="form-row">
+                                    <label>Source Color:</label>
+                                    <input type="color" id="sourceColor" value="#d3d3d3">
+                                </div>
+                                <div class="form-row">
+                                    <label>Background Color:</label>
+                                    <input type="color" id="backgroundColor" value="#000000">
+                                </div>
+                            </div>
+
+                            <div class="config-group">
+                                <h4>Position & Layout</h4>
+                                <div class="form-row">
+                                    <label>Vertical Position:</label>
+                                    <select id="verticalPosition">
+                                        <option value="bottom">Bottom</option>
+                                        <option value="top">Top</option>
+                                        <option value="center">Center</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <label>Alignment:</label>
+                                    <select id="alignment">
+                                        <option value="center">Center</option>
+                                        <option value="left">Left</option>
+                                        <option value="right">Right</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <label>Full Width:</label>
+                                    <input type="checkbox" id="fullWidth" checked>
+                                </div>
+                            </div>
+
+                            <div class="config-group">
+                                <h4>Format & Padding</h4>
+                                <div class="form-row">
+                                    <label>Decimal Places:</label>
+                                    <input type="number" id="decimalPlaces" value="9" min="1" max="10">
+                                </div>
+                                <div class="form-row">
+                                    <label>Vertical Padding:</label>
+                                    <input type="number" id="verticalPadding" value="100" min="10" max="300">
+                                </div>
+                                <div class="form-row">
+                                    <label>Include Emoji:</label>
+                                    <input type="checkbox" id="includeEmoji">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Custom Coordinates Section -->
+                    <div class="card coordinates-section">
+                        <h3>📍 Custom Coordinates (Optional)</h3>
+                        <p>Leave empty to use GPS data from image metadata</p>
+                        <div class="coord-input">
+                            <div>
+                                <label for="customLat">Latitude:</label>
+                                <input type="number" id="customLat" step="any" placeholder="e.g., 40.7128">
+                            </div>
+                            <div>
+                                <label for="customLon">Longitude:</label>
+                                <input type="number" id="customLon" step="any" placeholder="e.g., -74.0060">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Info Panel -->
+                    <div id="infoPanel" style="display: none;"></div>
+
+                    <!-- Preview Section -->
+                    <div class="preview-section">
+                        <canvas id="previewCanvas" style="display: none;"></canvas>
+                        <div style="margin-top: 20px;">
+                            <button class="download-btn" id="downloadBtn" style="display: none;" disabled>
+                                💾 Download Image with Overlay
+                            </button>
+                            <button class="download-btn" id="processAllBtn" style="display: none;">
+                                🔄 Process All Images
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ExifReader Library - Better HEIC support -->
+    <script src="https://cdn.jsdelivr.net/npm/exifreader@4.31.0/dist/exif-reader.js"></script>
+    
+    <script>
+        class ImageCoordinateOverlay {
+            constructor() {
+                this.selectedFiles = [];
+                this.currentImageData = null;
+                this.hasProcessedImage = false; // Track if user has processed an image
+                this.setupEventListeners();
+                this.loadDefaultConfig();
+                this.initializePage();
+            }
+
+            initializePage() {
+                // Ensure page starts at the top on load
+                window.scrollTo(0, 0);
+                
+                // Prevent any automatic scrolling on page load
+                setTimeout(() => {
+                    window.scrollTo(0, 0);
+                }, 100);
+            }
+
+            setupEventListeners() {
+                const fileInput = document.getElementById('fileInput');
+                const uploadSection = document.getElementById('uploadSection');
+                
+                fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+                
+                // Drag and drop
+                uploadSection.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadSection.classList.add('dragover');
+                });
+                
+                uploadSection.addEventListener('dragleave', () => {
+                    uploadSection.classList.remove('dragover');
+                });
+                
+                uploadSection.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadSection.classList.remove('dragover');
+                    this.handleFileSelect(e);
+                });
+
+                // Config changes
+                const configInputs = document.querySelectorAll('.config-group input, .config-group select');
+                configInputs.forEach(input => {
+                    input.addEventListener('change', () => this.updatePreview());
+                });
+
+                // Custom coordinates
+                document.getElementById('customLat').addEventListener('input', () => this.updatePreview());
+                document.getElementById('customLon').addEventListener('input', () => this.updatePreview());
+
+                // Download button
+                document.getElementById('downloadBtn').addEventListener('click', () => this.downloadImage());
+                document.getElementById('processAllBtn').addEventListener('click', () => this.processAllImages());
+            }
+
+            loadDefaultConfig() {
+                // Config is already set in HTML, but we can override here if needed
+                this.showInfo('Ready to process images. Upload an image to begin.', 'info');
+            }
+
+            handleFileSelect(event) {
+                const files = event.target?.files || event.dataTransfer?.files;
+                if (!files || files.length === 0) return;
+
+                this.selectedFiles = Array.from(files);
+                this.showInfo(`Selected ${files.length} file(s). Processing first image...`, 'info');
+                
+                if (files.length > 1) {
+                    document.getElementById('processAllBtn').style.display = 'inline-block';
+                }
+
+                this.processImage(files[0]);
+            }
+
+            async processImage(file) {
+                try {
+                    this.showProgress(10);
+                    
+                    // Load image
+                    const img = await this.loadImage(file);
+                    this.showProgress(30);
+                    
+                    // Extract GPS coordinates
+                    const coords = await this.extractGPSCoordinates(file);
+                    this.showProgress(50);
+                    
+                    // Create overlay
+                    await this.createOverlay(img, coords, file.name);
+                    this.showProgress(100);
+                    
+                    // Mark that user has processed an image
+                    this.hasProcessedImage = true;
+                    
+                    this.hideProgress();
+                    
+                } catch (error) {
+                    this.showInfo(`Error processing image: ${error.message}`, 'error');
+                    console.error('Processing error:', error);
+                    this.hideProgress();
+                }
+            }
+
+            loadImage(file) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    const url = URL.createObjectURL(file);
+                    
+                    img.onload = () => {
+                        URL.revokeObjectURL(url);
+                        resolve(img);
+                    };
+                    
+                    img.onerror = () => {
+                        URL.revokeObjectURL(url);
+                        reject(new Error('Failed to load image'));
+                    };
+                    
+                    img.src = url;
+                });
+            }
+
+            async extractGPSCoordinates(file) {
+                try {
+                    // Use ExifReader which has much better HEIC support
+                    const tags = await ExifReader.load(file, {
+                        expanded: true,  // This groups GPS tags separately
+                        gps: true,       // Enable GPS parsing
+                        exif: true,      // Enable EXIF parsing
+                        tiff: true       // Enable TIFF parsing
+                    });
+                    
+                    console.log('ExifReader tags:', tags); // Debug logging
+                    
+                    // Check for GPS data in different possible locations
+                    let gpsData = null;
+                    let latitude, longitude;
+
+                    console.log('GPS raw data:', tags.gps);
+                    
+                    // Method 1: Check for processed GPS coordinates in gps object (most common)
+                    if (tags.gps && typeof tags.gps.Latitude === 'number' && typeof tags.gps.Longitude === 'number') {
+                        latitude = tags.gps.Latitude;
+                        longitude = tags.gps.Longitude;
+                        gpsData = { latitude, longitude, source: 'EXIF GPS (ExifReader)' };
+                        console.log('Using processed GPS coordinates:', latitude, longitude);
+                    }
+                    // Method 2: Check for GPS data in the GPS block with manual conversion
+                    else if (tags.gps && tags.gps.GPSLatitude && tags.gps.GPSLongitude && 
+                             tags.gps.GPSLatitudeRef && tags.gps.GPSLongitudeRef) {
+                        const gpsLat = tags.gps.GPSLatitude;
+                        const gpsLon = tags.gps.GPSLongitude;
+                        const gpsLatRef = tags.gps.GPSLatitudeRef;
+                        const gpsLonRef = tags.gps.GPSLongitudeRef;
+                        
+                        console.log('GPS raw data:', { gpsLat, gpsLon, gpsLatRef, gpsLonRef });
+                        
+                        latitude = this.convertDMSToDD(gpsLat.value || gpsLat.description || gpsLat, 
+                                                       gpsLatRef.value || gpsLatRef.description || gpsLatRef);
+                        longitude = this.convertDMSToDD(gpsLon.value || gpsLon.description || gpsLon, 
+                                                        gpsLonRef.value || gpsLonRef.description || gpsLonRef);
+                        
+                        gpsData = { latitude, longitude, source: 'EXIF GPS (Manual)' };
+                        console.log('Manually converted GPS coordinates:', latitude, longitude);
+                    }
+                    // Method 3: Check for GPS data in main tags object (when expanded: false)
+                    else if (tags.GPSLatitude && tags.GPSLongitude && tags.GPSLatitudeRef && tags.GPSLongitudeRef) {
+                        const gpsLat = tags.GPSLatitude;
+                        const gpsLon = tags.GPSLongitude;
+                        const gpsLatRef = tags.GPSLatitudeRef;
+                        const gpsLonRef = tags.GPSLongitudeRef;
+                        
+                        console.log('GPS raw data (main):', { gpsLat, gpsLon, gpsLatRef, gpsLonRef });
+                        
+                        latitude = this.convertDMSToDD(gpsLat.value || gpsLat.description || gpsLat, 
+                                                       gpsLatRef.value || gpsLatRef.description || gpsLatRef);
+                        longitude = this.convertDMSToDD(gpsLon.value || gpsLon.description || gpsLon, 
+                                                        gpsLonRef.value || gpsLonRef.description || gpsLonRef);
+                        
+                        gpsData = { latitude, longitude, source: 'EXIF GPS (Main)' };
+                        console.log('Manually converted GPS coordinates (main):', latitude, longitude);
+                    }
+                    
+                    // Validate the coordinates
+                    if (gpsData && !isNaN(gpsData.latitude) && !isNaN(gpsData.longitude)) {
+                        console.log('Valid GPS coordinates found:', gpsData);
+                        return gpsData;
+                    } else {
+                        console.log('No valid GPS coordinates found or coordinates are NaN');
+                        return null;
+                    }
+                } catch (error) {
+                    console.error('GPS extraction error:', error);
+                    return null;
+                }
+            }
+
+            convertDMSToDD(dms, ref) {
+                console.log('Converting DMS to DD:', { dms, ref });
+                
+                // Handle different input formats
+                let degrees, minutes, seconds;
+                
+                if (Array.isArray(dms)) {
+                    // Standard DMS array format
+                    degrees = dms[0] || 0;
+                    minutes = dms[1] || 0;
+                    seconds = dms[2] || 0;
+                } else if (typeof dms === 'object' && dms.value) {
+                    // Object with value property
+                    if (Array.isArray(dms.value)) {
+                        degrees = dms.value[0] || 0;
+                        minutes = dms.value[1] || 0;
+                        seconds = dms.value[2] || 0;
+                    } else {
+                        // Already in decimal format
+                        return parseFloat(dms.value) * (ref === 'S' || ref === 'W' ? -1 : 1);
+                    }
+                } else if (typeof dms === 'number') {
+                    // Already in decimal format
+                    return dms * (ref === 'S' || ref === 'W' ? -1 : 1);
+                } else {
+                    console.error('Unrecognized DMS format:', dms);
+                    return 0;
+                }
+                
+                // Handle fractional values (rational numbers)
+                if (Array.isArray(degrees)) degrees = degrees[0] / degrees[1];
+                if (Array.isArray(minutes)) minutes = minutes[0] / minutes[1];
+                if (Array.isArray(seconds)) seconds = seconds[0] / seconds[1];
+                
+                let dd = degrees + minutes/60 + seconds/3600;
+                
+                // Apply direction
+                if (ref === "S" || ref === "W") dd = dd * -1;
+                
+                console.log('Converted to DD:', dd);
+                return dd;
+            }
+
+            async createOverlay(img, gpsCoords, filename) {
+                const canvas = document.getElementById('previewCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Set canvas size
+                canvas.width = img.width;
+                canvas.height = img.height;
+                
+                // Draw original image
+                ctx.drawImage(img, 0, 0);
+                
+                // Get coordinates (custom or GPS)
+                let coords = this.getCustomCoordinates() || gpsCoords;
+                
+                if (!coords) {
+                    this.showInfo('No GPS coordinates found in image metadata. Please enter custom coordinates.', 'error');
+                    coords = { latitude: 0, longitude: 0, source: 'No GPS data' };
+                }
+                
+                // Get configuration
+                const config = this.getConfiguration();
+                
+                // Format coordinates
+                const latStr = this.formatCoordinate(coords.latitude, true, config.decimalPlaces);
+                const lonStr = this.formatCoordinate(coords.longitude, false, config.decimalPlaces);
+                
+                const emoji = config.includeEmoji ? "📍 " : "";
+                const coordText = `${emoji}${latStr}, ${lonStr}`;
+                const sourceText = `Source: ${coords.source}`;
+                
+                // Calculate overlay dimensions
+                ctx.font = `${config.coordinateFontSize}px Arial, sans-serif`;
+                const coordMetrics = ctx.measureText(coordText);
+                
+                ctx.font = `${config.sourceFontSize}px Arial, sans-serif`;
+                const sourceMetrics = ctx.measureText(sourceText);
+                
+                const maxTextWidth = Math.max(coordMetrics.width, sourceMetrics.width);
+                const overlayWidth = config.fullWidth ? canvas.width : maxTextWidth + (config.verticalPadding / 2);
+                const overlayHeight = config.coordinateFontSize + config.sourceFontSize + config.verticalPadding;
+                
+                // Calculate overlay position
+                let overlayX = 0;
+                let overlayY = 0;
+                
+                if (config.fullWidth) {
+                    overlayX = 0;
+                } else {
+                    switch (config.alignment) {
+                        case 'center': overlayX = (canvas.width - overlayWidth) / 2; break;
+                        case 'right': overlayX = canvas.width - overlayWidth; break;
+                        default: overlayX = 0;
+                    }
+                }
+                
+                switch (config.verticalPosition) {
+                    case 'top': overlayY = 0; break;
+                    case 'center': overlayY = (canvas.height - overlayHeight) / 2; break;
+                    default: overlayY = canvas.height - overlayHeight;
+                }
+                
+                // Draw background
+                ctx.fillStyle = `rgba(${config.backgroundColor.r}, ${config.backgroundColor.g}, ${config.backgroundColor.b}, ${config.backgroundOpacity})`;
+                ctx.fillRect(overlayX, overlayY, overlayWidth, overlayHeight);
+                
+                // Calculate text positions
+                let coordX, sourceX;
+                if (config.alignment === 'center' || config.fullWidth) {
+                    coordX = overlayX + (overlayWidth - coordMetrics.width) / 2;
+                    sourceX = overlayX + (overlayWidth - sourceMetrics.width) / 2;
+                } else if (config.alignment === 'right') {
+                    coordX = overlayX + overlayWidth - coordMetrics.width - 20;
+                    sourceX = overlayX + overlayWidth - sourceMetrics.width - 20;
+                } else {
+                    coordX = overlayX + 20;
+                    sourceX = overlayX + 20;
+                }
+                
+                const coordY = overlayY + config.verticalPadding / 2 + config.coordinateFontSize;
+                const sourceY = coordY + config.sourceFontSize + 20;
+                
+                // Draw coordinate text
+                ctx.font = `${config.coordinateFontSize}px Arial, sans-serif`;
+                ctx.fillStyle = config.coordinateColor;
+                ctx.fillText(coordText, coordX, coordY);
+                
+                // Draw source text
+                ctx.font = `${config.sourceFontSize}px Arial, sans-serif`;
+                ctx.fillStyle = config.sourceColor;
+                ctx.fillText(sourceText, sourceX, sourceY);
+                
+                // Show preview
+                canvas.style.display = 'block';
+                canvas.className = 'image-preview';
+                
+                // Enable download
+                document.getElementById('downloadBtn').disabled = false;
+                document.getElementById('downloadBtn').style.display = 'inline-block';
+                
+                // Store data for download
+                this.currentImageData = {
+                    canvas: canvas,
+                    filename: filename,
+                    coordinates: coords
+                };
+                
+                this.showInfo(`✅ Overlay created! Coordinates: ${latStr}, ${lonStr}`, 'success');
+                
+                // Automatically scroll to the preview section
+                setTimeout(() => {
+                    this.scrollToPreview();
+                }, 300); // Small delay to ensure everything is rendered
+            }
+
+            scrollToPreview() {
+                const previewSection = document.querySelector('.preview-section');
+                const canvas = document.getElementById('previewCanvas');
+                
+                // Only scroll if user has processed an image and canvas is visible
+                if (this.hasProcessedImage && previewSection && canvas.style.display === 'block') {
+                    // Calculate the scroll position to center the image in the viewport
+                    const rect = canvas.getBoundingClientRect();
+                    const windowHeight = window.innerHeight;
+                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                    
+                    // Calculate target scroll position (center the image in viewport)
+                    const targetY = scrollTop + rect.top - (windowHeight / 2) + (rect.height / 2);
+                    
+                    // Smooth scroll to the target position
+                    window.scrollTo({
+                        top: Math.max(0, targetY), // Ensure we don't scroll above the page
+                        behavior: 'smooth'
+                    });
+                }
+            }
+
+            getCustomCoordinates() {
+                const lat = parseFloat(document.getElementById('customLat').value);
+                const lon = parseFloat(document.getElementById('customLon').value);
+                
+                if (!isNaN(lat) && !isNaN(lon)) {
+                    return { latitude: lat, longitude: lon, source: 'Custom' };
+                }
+                return null;
+            }
+
+            getConfiguration() {
+                const bgColor = this.hexToRgb(document.getElementById('backgroundColor').value);
+                
+                return {
+                    coordinateFontSize: parseInt(document.getElementById('coordinateFontSize').value),
+                    sourceFontSize: parseInt(document.getElementById('sourceFontSize').value),
+                    coordinateColor: document.getElementById('coordinateColor').value,
+                    sourceColor: document.getElementById('sourceColor').value,
+                    backgroundColor: bgColor,
+                    backgroundOpacity: 0.7,
+                    verticalPosition: document.getElementById('verticalPosition').value,
+                    alignment: document.getElementById('alignment').value,
+                    fullWidth: document.getElementById('fullWidth').checked,
+                    decimalPlaces: parseInt(document.getElementById('decimalPlaces').value),
+                    includeEmoji: document.getElementById('includeEmoji').checked,
+                    verticalPadding: parseInt(document.getElementById('verticalPadding').value)
+                };
+            }
+
+            formatCoordinate(coord, isLatitude, decimalPlaces) {
+                const abs = Math.abs(coord);
+                const direction = isLatitude ? (coord >= 0 ? 'N' : 'S') : (coord >= 0 ? 'E' : 'W');
+                return `${abs.toFixed(decimalPlaces)}°${direction}`;
+            }
+
+            hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : { r: 0, g: 0, b: 0 };
+            }
+
+            updatePreview() {
+                if (this.currentImageData) {
+                    // Re-process current image with new settings
+                    const file = this.selectedFiles[0];
+                    if (file) {
+                        this.processImage(file);
+                    }
+                }
+            }
+
+            downloadImage() {
+                if (!this.currentImageData) return;
+                
+                const canvas = this.currentImageData.canvas;
+                const filename = this.currentImageData.filename;
+                
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = this.getOutputFilename(filename);
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
+            }
+
+            getOutputFilename(originalName) {
+                const lastDot = originalName.lastIndexOf('.');
+                if (lastDot === -1) {
+                    return originalName + '_with_coordinates.jpg';
+                }
+                const name = originalName.substring(0, lastDot);
+                const ext = originalName.substring(lastDot);
+                return `${name}_with_coordinates${ext}`;
+            }
+
+            async processAllImages() {
+                if (this.selectedFiles.length <= 1) return;
+                
+                this.showInfo(`Processing ${this.selectedFiles.length} images...`, 'info');
+                
+                for (let i = 0; i < this.selectedFiles.length; i++) {
+                    try {
+                        await this.processImage(this.selectedFiles[i]);
+                        await new Promise(resolve => setTimeout(resolve, 500)); // Small delay
+                        this.downloadImage();
+                    } catch (error) {
+                        console.error(`Error processing ${this.selectedFiles[i].name}:`, error);
+                    }
+                }
+                
+                this.showInfo(`✅ Processed all ${this.selectedFiles.length} images!`, 'success');
+            }
+
+            showInfo(message, type = 'info') {
+                const panel = document.getElementById('infoPanel');
+                panel.className = `${type}-panel`;
+                panel.textContent = message;
+                panel.style.display = 'block';
+            }
+
+            showProgress(percent) {
+                const progressBar = document.getElementById('progressBar');
+                const progressFill = document.getElementById('progressFill');
+                progressBar.style.display = 'block';
+                progressFill.style.width = percent + '%';
+            }
+
+            hideProgress() {
+                const progressBar = document.getElementById('progressBar');
+                progressBar.style.display = 'none';
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            new ImageCoordinateOverlay();
+        });
+    </script>
+</body>
+</html> 
