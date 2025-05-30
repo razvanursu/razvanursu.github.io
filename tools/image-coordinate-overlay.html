@@ -104,14 +104,15 @@
                                     <input type="checkbox" id="includeEmoji">
                                 </div>
                             </div>
+                        </div>
 
-                            <div class="config-group">
-                                <h4>Extra Information</h4>
-                                <div class="form-row">
-                                    <label>Additional Text (optional):</label>
-                                    <textarea id="extraInfo" rows="5" maxlength="200" placeholder="Add any additional information to display on your image...&#10;Examples: Location details, event name, photographer credit, etc."></textarea>
-                                    <div class="char-counter" id="charCounter">0 / 200 characters</div>
-                                </div>
+                        <!-- Extra Information section moved outside config-grid to ensure it's always on its own row -->
+                        <div class="config-group" style="margin-top: 20px;">
+                            <h4>Extra Information</h4>
+                            <div class="form-row">
+                                <label>Additional Text (optional):</label>
+                                <textarea id="extraInfo" rows="5" maxlength="200" placeholder="Add any additional information to display on your image...&#10;Examples: Location details, event name, photographer credit, etc."></textarea>
+                                <div class="char-counter" id="charCounter">0 / 200 characters</div>
                             </div>
                         </div>
                     </div>
