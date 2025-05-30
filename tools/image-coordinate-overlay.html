@@ -138,11 +138,11 @@
                         <h3>🌍 Use Current Browser Location</h3>
                         <p>Get your current location using your browser's geolocation service</p>
                         <div class="browser-location">
-                            <div style="display: flex; gap: 1em;">
-                                <button class="location-btn" id="getLocationBtn" style="flex: 0 0 40%;">
-                                📍 Get My Current Location
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5em;">
+                                <button class="location-btn" id="getLocationBtn" style="flex: 1 1 150px;">
+                                    📍 Get Location
                                 </button>
-                                <div id="locationStatus" class="location-status" style="flex: 0 0 60%;"></div>
+                                <div id="locationStatus" class="location-status" style="flex: 1 1 150px;"></div>
                             </div>                            
                             <div id="locationDisplay" class="location-display" style="display: none;">
                                 <div class="location-info">
@@ -793,7 +793,7 @@
                     }
                     
                     locationBtn.disabled = false;
-                    locationBtn.textContent = '📍 Get My Current Location';
+                    locationBtn.textContent = '📍 Get Location';
                     locationBtn.style.backgroundColor = '';
                     locationBtn.style.color = '';
                     locationStatus.textContent = '⏹️ Continuous location updates stopped';
@@ -803,7 +803,7 @@
 
                 // Start continuous updates
                 locationBtn.disabled = true;
-                locationBtn.textContent = '📍 Updating Location... (Click to Stop)';
+                locationBtn.textContent = '📍 Updating... (Click to Stop)';
                 locationBtn.style.backgroundColor = '#666';
                 locationBtn.style.color = '#ccc';
                 locationStatus.textContent = '🔄 Starting continuous location updates...';
@@ -867,7 +867,7 @@
                                     break;
                             }
                             
-                            locationStatus.textContent = errorMessage + ' (Updates continue every 10s)';
+                            locationStatus.textContent = errorMessage;
                             locationStatus.className = 'location-status error';
                         },
                         options
