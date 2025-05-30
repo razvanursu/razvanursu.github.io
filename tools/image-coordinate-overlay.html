@@ -786,10 +786,19 @@
                     if (this.coordinateUpdate) {
                         this.coordinateUpdate = false;
                         
+                        // Clear the custom coordinate fields
+                        document.getElementById('customLat').value = '';
+                        document.getElementById('customLon').value = '';
+                        
                         const useLocationBtn = document.getElementById('useLocationBtn');
                         useLocationBtn.textContent = 'Use This Location for Custom Coordinates';
                         useLocationBtn.style.backgroundColor = '';
                         useLocationBtn.style.color = '';
+                        
+                        // Update the preview if an image is loaded (to reflect cleared coordinates)
+                        if (this.currentImageData) {
+                            this.updatePreview();
+                        }
                     }
                     
                     locationBtn.disabled = false;
@@ -798,6 +807,10 @@
                     locationBtn.style.color = '';
                     locationStatus.textContent = '⏹️ Continuous location updates stopped';
                     locationStatus.className = 'location-status info';
+                    
+                    // Hide the location display
+                    locationDisplay.style.display = 'none';
+                    
                     return;
                 }
 
@@ -899,10 +912,20 @@
                     // Stop continuous updates
                     this.coordinateUpdate = false;
                     
+                    // Clear the custom coordinate fields
+                    document.getElementById('customLat').value = '';
+                    document.getElementById('customLon').value = '';
+                    
                     useLocationBtn.textContent = 'Use This Location for Custom Coordinates';
                     useLocationBtn.style.backgroundColor = '';
                     useLocationBtn.style.color = '';
-                    this.showInfo('⏹️ Continuous coordinate updates stopped', 'info');
+                    
+                    // Update the preview if an image is loaded (to reflect cleared coordinates)
+                    if (this.currentImageData) {
+                        this.updatePreview();
+                    }
+                    
+                    this.showInfo('⏹️ Continuous coordinate updates stopped and custom coordinates cleared', 'info');
                     return;
                 }
 
