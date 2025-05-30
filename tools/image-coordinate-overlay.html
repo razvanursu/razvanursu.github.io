@@ -23,11 +23,11 @@
                     <!-- Upload Section -->
                     <div class="card upload-section" id="uploadSection">
                         <h3>📁 Select or Drop Your Image</h3>
-                        <p>Supports JPEG, PNG, HEIC, and other formats</p>
+                        <p>Supports JPEG, PNG, HEIC/HEIF, and other formats (HEIC images will be automatically converted)</p>
                         <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
                             Choose Image File
                         </button>
-                        <input type="file" id="fileInput" accept="image/*" multiple>
+                        <input type="file" id="fileInput" accept="image/*,.heic,.heif" multiple>
                         <div class="progress-bar" id="progressBar" style="display: none;">
                             <div class="progress-fill" id="progressFill"></div>
                         </div>
@@ -175,12 +175,16 @@
 
     <!-- ExifReader Library - Better HEIC support -->
     <script src="https://cdn.jsdelivr.net/npm/exifreader@4.31.0/dist/exif-reader.js"></script>
+    <!-- HEIC-TO Library - Convert HEIC to web-compatible formats (more modern than heic2any) -->
+    <script src="https://cdn.jsdelivr.net/npm/heic-to@1.1.13/dist/iife/heic-to.js"></script>
     
     <script>
         class ImageCoordinateOverlay {
             constructor() {
                 this.selectedFiles = [];
                 this.currentImageData = null;
+                this.processedImageFile = null; // Store the converted/processed image file
+                this.originalGPSCoords = null; // Store the original GPS coordinates
                 this.hasProcessedImage = false; // Track if user has processed an image
                 this.setupEventListeners();
                 this.loadDefaultConfig();
@@ -284,13 +288,17 @@
                 try {
                     this.showProgress(10);
                     
-                    // Load image
-                    const img = await this.loadImage(file);
+                    // Load image (this handles HEIC conversion if needed)
+                    const { img, processedFile } = await this.loadImage(file);
                     this.showProgress(30);
                     
-                    // Extract GPS coordinates
+                    // Extract GPS coordinates from the original file (for metadata)
                     const coords = await this.extractGPSCoordinates(file);
                     this.showProgress(50);
+                    
+                    // Store the processed file and coordinates for updatePreview
+                    this.processedImageFile = processedFile;
+                    this.originalGPSCoords = coords;
                     
                     // Create overlay
                     await this.createOverlay(img, coords, file.name);
@@ -309,21 +317,74 @@
             }
 
             loadImage(file) {
-                return new Promise((resolve, reject) => {
-                    const img = new Image();
-                    const url = URL.createObjectURL(file);
-                    
-                    img.onload = () => {
-                        URL.revokeObjectURL(url);
-                        resolve(img);
-                    };
-                    
-                    img.onerror = () => {
-                        URL.revokeObjectURL(url);
-                        reject(new Error('Failed to load image'));
-                    };
-                    
-                    img.src = url;
+                return new Promise(async (resolve, reject) => {
+                    try {
+                        let imageFile = file;
+                        
+                        // Check if the file is HEIC/HEIF format
+                        const isHeicFile = file.type === 'image/heic' || file.type === 'image/heif' || 
+                                          file.name.toLowerCase().endsWith('.heic') || 
+                                          file.name.toLowerCase().endsWith('.heif');
+                        
+                        if (isHeicFile && typeof HeicTo !== 'undefined') {
+                            this.showInfo('🔄 Converting HEIC image to JPEG (this may take a moment)...', 'info');
+                            console.log('Converting HEIC file:', file.name);
+                            
+                            try {
+                                // First check if it's actually a HEIC file
+                                const isActuallyHeic = await HeicTo.isHeic(file);
+                                
+                                if (isActuallyHeic) {
+                                    // Convert HEIC to JPEG blob
+                                    const convertedBlob = await HeicTo({
+                                        blob: file,
+                                        type: "image/jpeg",
+                                        quality: 0.9
+                                    });
+                                    
+                                    // Create a new File object from the converted blob
+                                    imageFile = new File([convertedBlob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+                                        type: 'image/jpeg'
+                                    });
+                                    
+                                    console.log('HEIC conversion successful');
+                                    this.showInfo('✅ HEIC image converted successfully!', 'success');
+                                } else {
+                                    // File has HEIC extension but isn't actually HEIC format
+                                    console.log('File has HEIC extension but is not HEIC format, using as-is');
+                                    this.showInfo('ℹ️ File appears to be already in a compatible format', 'info');
+                                }
+                            } catch (heicError) {
+                                console.error('HEIC conversion failed:', heicError);
+                                this.showInfo(`❌ Failed to convert HEIC image: ${heicError.message}. Trying to load as regular image...`, 'error');
+                                // Don't reject, try to load as regular image
+                            }
+                        } else if (isHeicFile) {
+                            // HEIC file detected but library not available
+                            this.showInfo('⚠️ HEIC file detected, but conversion library not loaded. Please try refreshing the page.', 'error');
+                        }
+                        
+                        // Load the image (either original or converted)
+                        const img = new Image();
+                        const url = URL.createObjectURL(imageFile);
+                        
+                        img.onload = () => {
+                            URL.revokeObjectURL(url);
+                            // Return both the image and the processed file
+                            resolve({ img, processedFile: imageFile });
+                        };
+                        
+                        img.onerror = () => {
+                            URL.revokeObjectURL(url);
+                            reject(new Error('Failed to load image'));
+                        };
+                        
+                        img.src = url;
+                        
+                    } catch (error) {
+                        console.error('Image loading error:', error);
+                        reject(error);
+                    }
                 });
             }
 
@@ -674,24 +735,24 @@
             }
 
             updatePreview() {
-                if (this.currentImageData) {
-                    // Re-process current image with new settings (don't scroll since user is just updating config)
-                    const file = this.selectedFiles[0];
-                    if (file) {
-                        // Get the current image data to pass to createOverlay
-                        const img = new Image();
-                        const url = URL.createObjectURL(file);
-                        
-                        img.onload = () => {
-                            URL.revokeObjectURL(url);
-                            // Extract GPS coordinates again (though they'll be the same)
-                            this.extractGPSCoordinates(file).then(coords => {
-                                this.createOverlay(img, coords, file.name, false); // false = don't scroll
-                            });
-                        };
-                        
-                        img.src = url;
-                    }
+                if (this.currentImageData && this.processedImageFile && this.originalGPSCoords) {
+                    // Use the stored processed image file and GPS coordinates (don't scroll since user is just updating config)
+                    const img = new Image();
+                    const url = URL.createObjectURL(this.processedImageFile);
+                    
+                    img.onload = () => {
+                        URL.revokeObjectURL(url);
+                        // Use stored GPS coordinates
+                        this.createOverlay(img, this.originalGPSCoords, this.processedImageFile.name, false); // false = don't scroll
+                    };
+                    
+                    img.onerror = () => {
+                        URL.revokeObjectURL(url);
+                        console.error('Failed to load processed image file');
+                        this.showInfo('❌ Failed to update preview. Please try uploading the image again.', 'error');
+                    };
+                    
+                    img.src = url;
                 }
             }
 
