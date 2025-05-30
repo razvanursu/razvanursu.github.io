@@ -736,14 +736,14 @@
             }
 
             updatePreview() {
-                if (this.currentImageData && this.processedImageFile && this.originalGPSCoords) {
+                if (this.currentImageData && this.processedImageFile) {
                     // Use the stored processed image file and GPS coordinates (don't scroll since user is just updating config)
                     const img = new Image();
                     const url = URL.createObjectURL(this.processedImageFile);
                     
                     img.onload = () => {
                         URL.revokeObjectURL(url);
-                        // Use stored GPS coordinates
+                        // Use stored GPS coordinates (can be null for images without GPS data)
                         this.createOverlay(img, this.originalGPSCoords, this.processedImageFile.name, false); // false = don't scroll
                     };
                     
@@ -754,6 +754,12 @@
                     };
                     
                     img.src = url;
+                } else {
+                    console.log('UpdatePreview conditions not met:', {
+                        currentImageData: !!this.currentImageData,
+                        processedImageFile: !!this.processedImageFile,
+                        originalGPSCoords: !!this.originalGPSCoords
+                    });
                 }
             }
 
