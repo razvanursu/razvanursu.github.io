@@ -101,7 +101,7 @@
                                 </div>
                                 <div class="form-row">
                                     <label>Include Emoji:</label>
-                                    <input type="checkbox" id="includeEmoji">
+                                    <input type="checkbox" id="includeEmoji"">
                                 </div>
                             </div>
                         </div>
@@ -138,17 +138,19 @@
                         <h3>🌍 Use Current Browser Location</h3>
                         <p>Get your current location using your browser's geolocation service</p>
                         <div class="browser-location">
-                            <button class="location-btn" id="getLocationBtn">
+                            <div style="display: flex; gap: 1em;">
+                                <button class="location-btn" id="getLocationBtn" style="flex: 0 0 40%;">
                                 📍 Get My Current Location
-                            </button>
-                            <div id="locationStatus" class="location-status"></div>
+                                </button>
+                                <div id="locationStatus" class="location-status" style="flex: 0 0 60%;"></div>
+                            </div>                            
                             <div id="locationDisplay" class="location-display" style="display: none;">
                                 <div class="location-info">
                                     <span id="browserLat">Latitude: --</span>
                                     <span id="browserLon">Longitude: --</span>
                                 </div>
                                 <button class="use-location-btn" id="useLocationBtn">
-                                    ✅ Use This Location
+                                    Use This Location for Custom Coordinates
                                 </button>
                             </div>
                         </div>
@@ -774,9 +776,37 @@
                     return;
                 }
 
+                // Check if continuous updates are already running
+                if (this.locationUpdateInterval) {
+                    // Stop continuous updates
+                    clearInterval(this.locationUpdateInterval);
+                    this.locationUpdateInterval = null;
+                    
+                    // Also stop coordinate updates if they're running, since they depend on location updates
+                    if (this.coordinateUpdate) {
+                        this.coordinateUpdate = false;
+                        
+                        const useLocationBtn = document.getElementById('useLocationBtn');
+                        useLocationBtn.textContent = 'Use This Location for Custom Coordinates';
+                        useLocationBtn.style.backgroundColor = '';
+                        useLocationBtn.style.color = '';
+                    }
+                    
+                    locationBtn.disabled = false;
+                    locationBtn.textContent = '📍 Get My Current Location';
+                    locationBtn.style.backgroundColor = '';
+                    locationBtn.style.color = '';
+                    locationStatus.textContent = '⏹️ Continuous location updates stopped';
+                    locationStatus.className = 'location-status info';
+                    return;
+                }
+
+                // Start continuous updates
                 locationBtn.disabled = true;
-                locationBtn.textContent = '📍 Getting Location...';
-                locationStatus.textContent = '🔄 Requesting location permission...';
+                locationBtn.textContent = '📍 Updating Location... (Click to Stop)';
+                locationBtn.style.backgroundColor = '#666';
+                locationBtn.style.color = '#ccc';
+                locationStatus.textContent = '🔄 Starting continuous location updates...';
                 locationStatus.className = 'location-status info';
 
                 const options = {
@@ -785,75 +815,126 @@
                     maximumAge: 60000
                 };
 
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const lat = position.coords.latitude;
-                        const lon = position.coords.longitude;
-                        const accuracy = position.coords.accuracy;
-                        
-                        // Store the location data
-                        this.currentBrowserLocation = {
-                            latitude: lat,
-                            longitude: lon,
-                            accuracy: accuracy
-                        };
+                const updateLocation = () => {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const lat = position.coords.latitude;
+                            const lon = position.coords.longitude;
+                            const accuracy = position.coords.accuracy;
+                            const timestamp = new Date().toLocaleTimeString();
+                            
+                            // Store the location data
+                            this.currentBrowserLocation = {
+                                latitude: lat,
+                                longitude: lon,
+                                accuracy: accuracy
+                            };
 
-                        // Update the display
-                        document.getElementById('browserLat').textContent = `Latitude: ${lat.toFixed(9)}`;
-                        document.getElementById('browserLon').textContent = `Longitude: ${lon.toFixed(9)}`;
-                        
-                        locationStatus.textContent = `✅ Location found! Accuracy: ±${Math.round(accuracy)}m`;
-                        locationStatus.className = 'location-status success';
-                        locationDisplay.style.display = 'block';
-                        
-                        locationBtn.disabled = false;
-                        locationBtn.textContent = '📍 Get My Current Location';
-                    },
-                    (error) => {
-                        let errorMessage = '❌ ';
-                        console.log('Geolocation error:', error);
-                        switch(error.code) {
-                            case error.PERMISSION_DENIED:
-                                errorMessage += 'Location access denied by user';
-                                break;
-                            case error.POSITION_UNAVAILABLE:
-                                errorMessage += 'Location information unavailable';
-                                break;
-                            case error.TIMEOUT:
-                                errorMessage += 'Location request timed out';
-                                break;
-                            default:
-                                errorMessage += 'Unknown location error';
-                                break;
-                        }
-                        
-                        locationStatus.textContent = errorMessage;
-                        locationStatus.className = 'location-status error';
-                        locationDisplay.style.display = 'none';
-                        
-                        locationBtn.disabled = false;
-                        locationBtn.textContent = '📍 Get My Current Location';
-                    },
-                    options
-                );
+                            // Update the display
+                            document.getElementById('browserLat').textContent = `Latitude: ${lat.toFixed(9)}`;
+                            document.getElementById('browserLon').textContent = `Longitude: ${lon.toFixed(9)}`;
+                            
+                            locationStatus.textContent = `✅ Location updated at ${timestamp}! Accuracy: ±${Math.round(accuracy)}m (Updates every 10s)`;
+                            locationStatus.className = 'location-status success';
+                            locationDisplay.style.display = 'block';
+                            
+                            // If coordinate auto-update is active, update the coordinates automatically
+                            if (this.coordinateUpdate) {
+                                document.getElementById('customLat').value = this.currentBrowserLocation.latitude;
+                                document.getElementById('customLon').value = this.currentBrowserLocation.longitude;
+                            }
+                            
+                            // Update preview if image is loaded and custom coordinates are being used
+                            if (this.currentImageData && this.getCustomCoordinates()) {
+                                this.updatePreview();
+                            }
+                        },
+                        (error) => {
+                            let errorMessage = '❌ ';
+                            console.log('Geolocation error:', error);
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED:
+                                    errorMessage += 'Location access denied by user';
+                                    break;
+                                case error.POSITION_UNAVAILABLE:
+                                    errorMessage += 'Location information unavailable';
+                                    break;
+                                case error.TIMEOUT:
+                                    errorMessage += 'Location request timed out';
+                                    break;
+                                default:
+                                    errorMessage += 'Unknown location error';
+                                    break;
+                            }
+                            
+                            locationStatus.textContent = errorMessage + ' (Updates continue every 10s)';
+                            locationStatus.className = 'location-status error';
+                        },
+                        options
+                    );
+                };
+
+                // Get initial location
+                updateLocation();
+                
+                // Set up continuous updates every 10 seconds
+                this.locationUpdateInterval = setInterval(updateLocation, 10000);
+                
+                // Re-enable button but keep it styled as active
+                setTimeout(() => {
+                    locationBtn.disabled = false;
+                }, 1000);
             }
 
             useBrowserLocation() {
+                const useLocationBtn = document.getElementById('useLocationBtn');
+                
                 if (!this.currentBrowserLocation) {
                     this.showInfo('❌ No browser location available. Please get your location first.', 'error');
                     return;
                 }
 
-                // Set the custom coordinates to the browser location
-                document.getElementById('customLat').value = this.currentBrowserLocation.latitude;
-                document.getElementById('customLon').value = this.currentBrowserLocation.longitude;
-                
-                // Update the preview if an image is loaded
-                if (this.currentImageData) {
-                    this.updatePreview();
+                // Check if continuous coordinate updates are already running
+                if (this.coordinateUpdate) {
+                    // Stop continuous updates
+                    this.coordinateUpdate = false;
+                    
+                    useLocationBtn.textContent = 'Use This Location for Custom Coordinates';
+                    useLocationBtn.style.backgroundColor = '';
+                    useLocationBtn.style.color = '';
+                    this.showInfo('⏹️ Continuous coordinate updates stopped', 'info');
+                    return;
                 }
+
+                // Start continuous coordinate updates
+                useLocationBtn.textContent = '🔄 Auto-Updating Coordinates (Click to Stop)';
+                useLocationBtn.style.backgroundColor = '#666';
+                useLocationBtn.style.color = '#ccc';
+
+                const updateCoordinates = () => {
+                    if (!this.currentBrowserLocation) {
+                        this.showInfo('❌ Browser location not available', 'error');
+                        return;
+                    }
+
+                    // Set the custom coordinates to the current browser location
+                    document.getElementById('customLat').value = this.currentBrowserLocation.latitude;
+                    document.getElementById('customLon').value = this.currentBrowserLocation.longitude;
+                    
+                    // Update the preview if an image is loaded
+                    if (this.currentImageData) {
+                        this.updatePreview();
+                    }
+                    
+                    const timestamp = new Date().toLocaleTimeString();
+                    this.showInfo(`✅ Coordinates auto-updated at ${timestamp} (Updates every 10s)`, 'success');
+                };
+
+                // Set initial coordinates
+                updateCoordinates();
                 
-                this.showInfo('✅ Browser location set as custom coordinates!', 'success');
+                // Set up continuous updates every 10 seconds
+                this.coordinateUpdate = true;
             }
 
             downloadImage() {
