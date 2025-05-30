@@ -122,6 +122,27 @@
                         </div>
                     </div>
 
+                    <!-- Browser Location Section -->
+                    <div class="card coordinates-section">
+                        <h3>🌍 Use Current Browser Location</h3>
+                        <p>Get your current location using your browser's geolocation service</p>
+                        <div class="browser-location">
+                            <button class="location-btn" id="getLocationBtn">
+                                📍 Get My Current Location
+                            </button>
+                            <div id="locationStatus" class="location-status"></div>
+                            <div id="locationDisplay" class="location-display" style="display: none;">
+                                <div class="location-info">
+                                    <span id="browserLat">Latitude: --</span>
+                                    <span id="browserLon">Longitude: --</span>
+                                </div>
+                                <button class="use-location-btn" id="useLocationBtn">
+                                    ✅ Use This Location
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Info Panel -->
                     <div id="infoPanel" style="display: none;"></div>
 
@@ -197,6 +218,10 @@
                 // Custom coordinates
                 document.getElementById('customLat').addEventListener('input', () => this.updatePreview());
                 document.getElementById('customLon').addEventListener('input', () => this.updatePreview());
+
+                // Browser geolocation
+                document.getElementById('getLocationBtn').addEventListener('click', () => this.getCurrentLocation());
+                document.getElementById('useLocationBtn').addEventListener('click', () => this.useBrowserLocation());
 
                 // Download button
                 document.getElementById('downloadBtn').addEventListener('click', () => this.downloadImage());
@@ -575,6 +600,98 @@
                         this.processImage(file);
                     }
                 }
+            }
+
+            getCurrentLocation() {
+                const locationBtn = document.getElementById('getLocationBtn');
+                const locationStatus = document.getElementById('locationStatus');
+                const locationDisplay = document.getElementById('locationDisplay');
+                
+                if (!navigator.geolocation) {
+                    locationStatus.textContent = '❌ Geolocation is not supported by this browser';
+                    locationStatus.className = 'location-status error';
+                    return;
+                }
+
+                locationBtn.disabled = true;
+                locationBtn.textContent = '📍 Getting Location...';
+                locationStatus.textContent = '🔄 Requesting location permission...';
+                locationStatus.className = 'location-status info';
+
+                const options = {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 60000
+                };
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const accuracy = position.coords.accuracy;
+                        
+                        // Store the location data
+                        this.currentBrowserLocation = {
+                            latitude: lat,
+                            longitude: lon,
+                            accuracy: accuracy
+                        };
+
+                        // Update the display
+                        document.getElementById('browserLat').textContent = `Latitude: ${lat.toFixed(9)}`;
+                        document.getElementById('browserLon').textContent = `Longitude: ${lon.toFixed(9)}`;
+                        
+                        locationStatus.textContent = `✅ Location found! Accuracy: ±${Math.round(accuracy)}m`;
+                        locationStatus.className = 'location-status success';
+                        locationDisplay.style.display = 'block';
+                        
+                        locationBtn.disabled = false;
+                        locationBtn.textContent = '📍 Get My Current Location';
+                    },
+                    (error) => {
+                        let errorMessage = '❌ ';
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage += 'Location access denied by user';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage += 'Location information unavailable';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage += 'Location request timed out';
+                                break;
+                            default:
+                                errorMessage += 'Unknown location error';
+                                break;
+                        }
+                        
+                        locationStatus.textContent = errorMessage;
+                        locationStatus.className = 'location-status error';
+                        locationDisplay.style.display = 'none';
+                        
+                        locationBtn.disabled = false;
+                        locationBtn.textContent = '📍 Get My Current Location';
+                    },
+                    options
+                );
+            }
+
+            useBrowserLocation() {
+                if (!this.currentBrowserLocation) {
+                    this.showInfo('❌ No browser location available. Please get your location first.', 'error');
+                    return;
+                }
+
+                // Set the custom coordinates to the browser location
+                document.getElementById('customLat').value = this.currentBrowserLocation.latitude;
+                document.getElementById('customLon').value = this.currentBrowserLocation.longitude;
+                
+                // Update the preview if an image is loaded
+                if (this.currentImageData) {
+                    this.updatePreview();
+                }
+                
+                this.showInfo('✅ Browser location set as custom coordinates!', 'success');
             }
 
             downloadImage() {
