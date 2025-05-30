@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Coordinate Overlay - Răzvan-Mihai Ursu</title>
     <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="image-coordinate-overlay-styles.css">
 </head>
 <body>
     <div class="container">
@@ -44,7 +45,7 @@
                                 </div>
                                 <div class="form-row">
                                     <label>Source Text:</label>
-                                    <input type="number" id="sourceFontSize" value="48" min="16" max="150">
+                                    <input type="number" id="sourceFontSize" value="72" min="16" max="150">
                                 </div>
                             </div>
 
@@ -101,6 +102,15 @@
                                 <div class="form-row">
                                     <label>Include Emoji:</label>
                                     <input type="checkbox" id="includeEmoji">
+                                </div>
+                            </div>
+
+                            <div class="config-group">
+                                <h4>Extra Information</h4>
+                                <div class="form-row">
+                                    <label>Additional Text (optional):</label>
+                                    <textarea id="extraInfo" rows="5" maxlength="200" placeholder="Add any additional information to display on your image...&#10;Examples: Location details, event name, photographer credit, etc."></textarea>
+                                    <div class="char-counter" id="charCounter">0 / 200 characters</div>
                                 </div>
                             </div>
                         </div>
@@ -218,6 +228,29 @@
                 // Custom coordinates
                 document.getElementById('customLat').addEventListener('input', () => this.updatePreview());
                 document.getElementById('customLon').addEventListener('input', () => this.updatePreview());
+
+                // Extra information textarea
+                document.getElementById('extraInfo').addEventListener('input', () => this.updatePreview());
+
+                // Character counter for extra info textarea
+                const extraInfoTextarea = document.getElementById('extraInfo');
+                const charCounter = document.getElementById('charCounter');
+                
+                extraInfoTextarea.addEventListener('input', () => {
+                    const currentLength = extraInfoTextarea.value.length;
+                    const maxLength = 200;
+                    charCounter.textContent = `${currentLength} / ${maxLength} characters`;
+                    
+                    // Update counter styling based on character count
+                    charCounter.className = 'char-counter';
+                    if (currentLength > maxLength * 0.8) {
+                        charCounter.classList.add('warning');
+                    }
+                    if (currentLength > maxLength * 0.95) {
+                        charCounter.classList.remove('warning');
+                        charCounter.classList.add('danger');
+                    }
+                });
 
                 // Browser geolocation
                 document.getElementById('getLocationBtn').addEventListener('click', () => this.getCurrentLocation());
@@ -412,7 +445,7 @@
                 return dd;
             }
 
-            async createOverlay(img, gpsCoords, filename) {
+            async createOverlay(img, gpsCoords, filename, shouldScroll = true) {
                 const canvas = document.getElementById('previewCanvas');
                 const ctx = canvas.getContext('2d');
                 
@@ -449,9 +482,31 @@
                 ctx.font = `${config.sourceFontSize}px Arial, sans-serif`;
                 const sourceMetrics = ctx.measureText(sourceText);
                 
-                const maxTextWidth = Math.max(coordMetrics.width, sourceMetrics.width);
+                // Handle extra information if provided
+                let extraInfoMetrics = null;
+                let extraInfoLines = [];
+                let extraInfoHeight = 0;
+                
+                if (config.extraInfo) {
+                    ctx.font = `${config.sourceFontSize}px Arial, sans-serif`;
+                    // Split text into lines that fit within the overlay width
+                    const maxLineWidth = config.fullWidth ? canvas.width - 40 : Math.max(coordMetrics.width, sourceMetrics.width);
+                    extraInfoLines = this.wrapText(ctx, config.extraInfo, maxLineWidth);
+                    extraInfoHeight = extraInfoLines.length * (config.sourceFontSize + 5); // 5px line spacing
+                    
+                    // Calculate widths for all extra info lines
+                    const extraInfoWidths = extraInfoLines.map(line => ctx.measureText(line).width);
+                    const maxExtraInfoWidth = Math.max(...extraInfoWidths);
+                    extraInfoMetrics = { width: maxExtraInfoWidth };
+                }
+                
+                const maxTextWidth = Math.max(
+                    coordMetrics.width, 
+                    sourceMetrics.width,
+                    extraInfoMetrics ? extraInfoMetrics.width : 0
+                );
                 const overlayWidth = config.fullWidth ? canvas.width : maxTextWidth + (config.verticalPadding / 2);
-                const overlayHeight = config.coordinateFontSize + config.sourceFontSize + config.verticalPadding;
+                const overlayHeight = config.coordinateFontSize + config.sourceFontSize + extraInfoHeight + config.verticalPadding + (extraInfoHeight > 0 ? 20 : 0);
                 
                 // Calculate overlay position
                 let overlayX = 0;
@@ -503,6 +558,29 @@
                 ctx.fillStyle = config.sourceColor;
                 ctx.fillText(sourceText, sourceX, sourceY);
                 
+                // Draw extra information if provided
+                if (config.extraInfo && extraInfoLines.length > 0) {
+                    ctx.font = `${config.sourceFontSize}px Arial, sans-serif`;
+                    ctx.fillStyle = config.sourceColor;
+                    
+                    let extraInfoY = sourceY + config.sourceFontSize + 15;
+                    extraInfoLines.forEach((line, index) => {
+                        let extraInfoX;
+                        const lineWidth = ctx.measureText(line).width;
+                        
+                        if (config.alignment === 'center' || config.fullWidth) {
+                            extraInfoX = overlayX + (overlayWidth - lineWidth) / 2;
+                        } else if (config.alignment === 'right') {
+                            extraInfoX = overlayX + overlayWidth - lineWidth - 20;
+                        } else {
+                            extraInfoX = overlayX + 20;
+                        }
+                        
+                        ctx.fillText(line, extraInfoX, extraInfoY);
+                        extraInfoY += config.sourceFontSize + 5;
+                    });
+                }
+                
                 // Show preview
                 canvas.style.display = 'block';
                 canvas.className = 'image-preview';
@@ -521,9 +599,11 @@
                 this.showInfo(`✅ Overlay created! Coordinates: ${latStr}, ${lonStr}`, 'success');
                 
                 // Automatically scroll to the preview section
-                setTimeout(() => {
-                    this.scrollToPreview();
-                }, 300); // Small delay to ensure everything is rendered
+                if (shouldScroll) {
+                    setTimeout(() => {
+                        this.scrollToPreview();
+                    }, 300); // Small delay to ensure everything is rendered
+                }
             }
 
             scrollToPreview() {
@@ -573,7 +653,8 @@
                     fullWidth: document.getElementById('fullWidth').checked,
                     decimalPlaces: parseInt(document.getElementById('decimalPlaces').value),
                     includeEmoji: document.getElementById('includeEmoji').checked,
-                    verticalPadding: parseInt(document.getElementById('verticalPadding').value)
+                    verticalPadding: parseInt(document.getElementById('verticalPadding').value),
+                    extraInfo: document.getElementById('extraInfo').value.trim()
                 };
             }
 
@@ -594,10 +675,22 @@
 
             updatePreview() {
                 if (this.currentImageData) {
-                    // Re-process current image with new settings
+                    // Re-process current image with new settings (don't scroll since user is just updating config)
                     const file = this.selectedFiles[0];
                     if (file) {
-                        this.processImage(file);
+                        // Get the current image data to pass to createOverlay
+                        const img = new Image();
+                        const url = URL.createObjectURL(file);
+                        
+                        img.onload = () => {
+                            URL.revokeObjectURL(url);
+                            // Extract GPS coordinates again (though they'll be the same)
+                            this.extractGPSCoordinates(file).then(coords => {
+                                this.createOverlay(img, coords, file.name, false); // false = don't scroll
+                            });
+                        };
+                        
+                        img.src = url;
                     }
                 }
             }
@@ -650,6 +743,7 @@
                     },
                     (error) => {
                         let errorMessage = '❌ ';
+                        console.log('Geolocation error:', error);
                         switch(error.code) {
                             case error.PERMISSION_DENIED:
                                 errorMessage += 'Location access denied by user';
@@ -757,6 +851,47 @@
             hideProgress() {
                 const progressBar = document.getElementById('progressBar');
                 progressBar.style.display = 'none';
+            }
+
+            wrapText(ctx, text, maxWidth) {
+                // First split by manual line breaks (preserving user's intentional line breaks)
+                const manualLines = text.split(/\r?\n/);
+                const wrappedLines = [];
+                
+                manualLines.forEach(line => {
+                    if (line.trim() === '') {
+                        // Preserve empty lines
+                        wrappedLines.push('');
+                        return;
+                    }
+                    
+                    // Check if the line fits within maxWidth
+                    if (ctx.measureText(line).width <= maxWidth) {
+                        wrappedLines.push(line);
+                    } else {
+                        // Line is too long, wrap it by words
+                        const words = line.split(' ');
+                        let currentLine = words[0] || '';
+
+                        for (let i = 1; i < words.length; i++) {
+                            const word = words[i];
+                            const testLine = currentLine + " " + word;
+                            const width = ctx.measureText(testLine).width;
+                            
+                            if (width <= maxWidth) {
+                                currentLine = testLine;
+                            } else {
+                                wrappedLines.push(currentLine);
+                                currentLine = word;
+                            }
+                        }
+                        if (currentLine) {
+                            wrappedLines.push(currentLine);
+                        }
+                    }
+                });
+                
+                return wrappedLines;
             }
         }
 
